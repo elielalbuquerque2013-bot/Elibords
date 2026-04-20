@@ -1,0 +1,46 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string", "description": "Unique username" },
+        "password": { "type": "string", "description": "User password" },
+        "whatsapp": { "type": "string", "description": "WhatsApp number" },
+        "role": { "type": "string", "enum": ["admin", "client"], "description": "User role" }
+      },
+      "required": ["username", "password", "whatsapp", "role"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Embroidery order details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerName": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "description": { "type": "string" },
+        "width": { "type": "number" },
+        "height": { "type": "number" },
+        "date": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["Pendente", "Em Produção", "Concluído"] },
+        "intent": { "type": "string", "enum": ["budget", "produce"], "description": "Whether the customer wants a budget or production" },
+        "imagePreview": { "type": "string", "description": "URL of the reference image" },
+        "fileUrl": { "type": "string", "description": "URL of the final matrix file" },
+        "fileName": { "type": "string", "description": "Name of the final matrix file" }
+      },
+      "required": ["customerName", "whatsapp", "description", "width", "height", "date", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{username}": {
+      "schema": "User",
+      "description": "Collection of users"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Collection of orders"
+    }
+  }
+}

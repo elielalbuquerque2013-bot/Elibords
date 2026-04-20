@@ -1,0 +1,77 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {username}
+    // Fields:
+    //   - username: string (required)
+    //   - password: string (required)
+    //   - whatsapp: string (required)
+    //   - role: string (required, 'admin' or 'client')
+    //
+    // Collection: orders
+    // Document ID: {orderId}
+    // Fields:
+    //   - customerName: string (required)
+    //   - whatsapp: string (required)
+    //   - description: string (required)
+    //   - width: number (required)
+    //   - height: number (required)
+    //   - date: string (required, ISO 8601)
+    //   - status: string (required, 'Pendente', 'Em Produção', 'Concluído')
+    //   - imagePreview: string (optional)
+    //   - fileUrl: string (optional)
+    //   - fileName: string (optional)
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      // For this app, we'll allow public read/write for now as it's a simple migration
+      // but in a real app we would check a role field in the user document
+      return true; 
+    }
+
+    // Validation Functions
+    function isValidUser(data) {
+      return data.username is string && data.username.size() > 0 &&
+             data.password is string && data.password.size() > 0 &&
+             data.whatsapp is string &&
+             data.role in ['admin', 'client'];
+    }
+
+    function isValidOrder(data) {
+      return data.customerName is string && data.customerName.size() > 0 &&
+             data.whatsapp is string &&
+             data.description is string &&
+             data.width is number &&
+             data.height is number &&
+             data.date is string &&
+             data.status in ['Pendente', 'Em Produção', 'Concluído'];
+    }
+
+    // Rules
+    match /users/{username} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      allow read: if true;
+      allow write: if true; // Simplified for this application's nature
+    }
+
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}

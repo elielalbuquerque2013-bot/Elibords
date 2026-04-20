@@ -1,0 +1,177 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Space Grotesk", sans-serif;
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  
+  --color-brand-primary: #8D6E63; /* Medium Brown */
+  --color-brand-secondary: #5D4037; /* Dark Brown */
+  --color-brand-accent: #BCAAA4; /* Light Brown */
+  --color-brand-dark: #3E2723; /* Very Dark Brown */
+  --color-brand-light: #FDFBF7; /* Beige */
+}
+
+
+@layer components {
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-xl border border-brand-primary/10 shadow-xl rounded-[2rem];
+  }
+  
+  .glass-input {
+    @apply bg-white/50 border-brand-primary/20 focus:bg-white/80 focus:border-brand-primary/50 transition-all text-brand-dark placeholder:text-brand-dark/30 rounded-xl;
+  }
+  
+  .vibrant-button {
+    @apply bg-gradient-to-r from-brand-primary to-brand-secondary hover:from-brand-primary/90 hover:to-brand-secondary/90 text-white font-semibold transition-all shadow-lg shadow-brand-primary/20 active:scale-[0.98] rounded-full;
+  }
+
+  .vibrant-tab {
+    @apply data-[state=active]:bg-gradient-to-r data-[state=active]:from-brand-primary data-[state=active]:to-brand-secondary data-[state=active]:text-white transition-all rounded-full;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    --font-heading: var(--font-sans);
+    --font-sans: 'Geist Variable', sans-serif;
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+    --background: #FDFBF7;
+    --foreground: #4E342E;
+    --card: #FFFFFF;
+    --card-foreground: #4E342E;
+    --popover: #FFFFFF;
+    --popover-foreground: #4E342E;
+    --primary: #8D6E63;
+    --primary-foreground: #FFFFFF;
+    --secondary: #F5F5F5;
+    --secondary-foreground: #4E342E;
+    --muted: #F5F5F5;
+    --muted-foreground: #757575;
+    --accent: #F5F5F5;
+    --accent-foreground: #4E342E;
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: #E0E0E0;
+    --input: #E0E0E0;
+    --ring: #8D6E63;
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --radius: 0.625rem;
+    --sidebar: #FFFFFF;
+    --sidebar-foreground: #4E342E;
+    --sidebar-primary: #8D6E63;
+    --sidebar-primary-foreground: #FFFFFF;
+    --sidebar-accent: #F5F5F5;
+    --sidebar-accent-foreground: #4E342E;
+    --sidebar-border: #E0E0E0;
+    --sidebar-ring: #8D6E63;
+}
+
+.dark {
+    --background: #3E2723;
+    --foreground: #FDFBF7;
+    --card: #4E342E;
+    --card-foreground: #FDFBF7;
+    --popover: #4E342E;
+    --popover-foreground: #FDFBF7;
+    --primary: #BCAAA4;
+    --primary-foreground: #3E2723;
+    --secondary: #5D4037;
+    --secondary-foreground: #FDFBF7;
+    --muted: #5D4037;
+    --muted-foreground: #A1887F;
+    --accent: #5D4037;
+    --accent-foreground: #FDFBF7;
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: rgba(255, 255, 255, 0.1);
+    --input: rgba(255, 255, 255, 0.1);
+    --ring: #BCAAA4;
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --sidebar: #4E342E;
+    --sidebar-foreground: #FDFBF7;
+    --sidebar-primary: #BCAAA4;
+    --sidebar-primary-foreground: #3E2723;
+    --sidebar-accent: #5D4037;
+    --sidebar-accent-foreground: #FDFBF7;
+    --sidebar-border: rgba(255, 255, 255, 0.1);
+    --sidebar-ring: #BCAAA4;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    }
+  body {
+    @apply bg-brand-light text-brand-dark font-sans antialiased;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(141, 110, 99, 0.1) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(93, 64, 55, 0.1) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(188, 170, 164, 0.1) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, rgba(141, 110, 99, 0.1) 0px, transparent 50%);
+    background-attachment: fixed;
+  }
+  html {
+    @apply font-sans;
+    }
+}

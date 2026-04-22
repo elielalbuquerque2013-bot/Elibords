@@ -773,19 +773,27 @@ export default function App() {
       // If still empty or as backup, try manual firestore fetch
       if (Object.keys(currentUsers).length === 0) {
         try {
-          const { getDocs, collection } = await import("firebase/firestore");
+          const { getDocs, collection, query, limit } = await import("firebase/firestore");
+          // Fetch all users once
           const snapshot = await getDocs(collection(db, "users"));
+          if (snapshot.empty) {
+            console.warn("Nenhum usuário encontrado no Firestore 'users'");
+          }
           snapshot.docs.forEach(doc => {
             currentUsers[doc.id] = doc.data() as any;
           });
           setUsers(currentUsers);
-        } catch (err) {
+        } catch (err: any) {
           console.error("Erro ao carregar usuários manualmente:", err);
+          throw new Error(`Erro ao conectar ao banco de dados: ${err.message}`);
         }
       }
 
       const input = cleanWhatsapp;
       console.log("Buscando WhatsApp:", input, "em", Object.keys(currentUsers).length, "usuários");
+
+      // Debugging: Log first 3 users keys
+      console.log("Amostra de usuários:", Object.keys(currentUsers).slice(0, 3));
 
       for (const [name, data] of (Object.entries(currentUsers) as [string, any][])) {
         const stored = ((data.whatsapp as string) || "").replace(/\D/g, "");
@@ -829,6 +837,20 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ whatsapp: whatsappToUse, username: found.name })
       });
+      
+      const contentType = res.headers.get("content-type");
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Server error response:", errorText);
+        throw new Error(`Erro no servidor (${res.status}): ${errorText.slice(0, 50)}`);
+      }
+
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await res.text();
+        console.error("Non-JSON response received:", text);
+        throw new Error("O servidor retornou uma resposta inválida (não-JSON).");
+      }
+
       const data = await res.json();
       if (data.success) {
         setRecoveryStep('verify');

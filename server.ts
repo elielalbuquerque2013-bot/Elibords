@@ -17,9 +17,9 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Health check
+  // API Route: Health check
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", time: new Date().toISOString() });
+    res.json({ status: "ok", time: new Date().toISOString(), env: process.env.NODE_ENV });
   });
 
   // Recovery Memory Store (in production, use Firestore or Redis)
@@ -27,36 +27,37 @@ async function startServer() {
 
   // API Route: Send WhatsApp Verification Code
   app.post("/api/recovery/send-code", async (req, res) => {
-    const { whatsapp, username } = req.body;
-
-    if (!whatsapp) {
-      return res.status(400).json({ error: "Número do WhatsApp é obrigatório." });
-    }
-
-    // Generate 6-digit code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expires = Date.now() + 10 * 60 * 1000; // 10 minutes
-
-    recoveryCodes.set(username, { code, expires });
-
-    const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim();
-    const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
-    const fromNumber = process.env.TWILIO_WHATSAPP_NUMBER?.trim();
-
-    const isDevMode = !accountSid || !authToken || !fromNumber || accountSid === "" || authToken === "";
-
-    if (isDevMode) {
-      console.warn("Twilio credentials missing or empty. Logging code for development.");
-      console.log(`[RECOVERY] Code for ${username} (${whatsapp}): ${code}`);
-      return res.json({ 
-        success: true, 
-        message: "Modo de desenvolvimento: Código gerado com sucesso.", 
-        devCode: code,
-        isDev: true 
-      });
-    }
-
     try {
+      const { whatsapp, username } = req.body;
+      console.log(`[RECOVERY] Request for username: ${username}, whatsapp: ${whatsapp}`);
+
+      if (!whatsapp) {
+        return res.status(400).json({ error: "Número do WhatsApp é obrigatório." });
+      }
+
+      // Generate 6-digit code
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const expires = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+      recoveryCodes.set(username, { code, expires });
+
+      const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim();
+      const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
+      const fromNumber = process.env.TWILIO_WHATSAPP_NUMBER?.trim();
+
+      const isDevMode = !accountSid || !authToken || !fromNumber || accountSid === "" || authToken === "";
+
+      if (isDevMode) {
+        console.warn("Twilio credentials missing or empty. Logging code for development.");
+        console.log(`[RECOVERY] Code for ${username} (${whatsapp}): ${code}`);
+        return res.json({ 
+          success: true, 
+          message: "Modo de desenvolvimento: Código gerado com sucesso.", 
+          devCode: code,
+          isDev: true 
+        });
+      }
+
       const client = twilio(accountSid, authToken);
       const to = whatsapp.startsWith('whatsapp:') ? whatsapp : `whatsapp:${whatsapp}`;
       const from = fromNumber.startsWith('whatsapp:') ? fromNumber : `whatsapp:${fromNumber}`;
@@ -69,37 +70,44 @@ async function startServer() {
 
       res.json({ success: true, message: "Código enviado com sucesso!" });
     } catch (error: any) {
-      console.error("Twilio Error:", error);
-      // Fallback for development if Twilio fails (e.g. invalid keys)
-      res.status(200).json({ 
-        success: true, 
-        message: "Falha no Twilio, entrando em modo de fallback (DEV).", 
-        devCode: code,
-        isDev: true,
-        error: error.message 
+      console.error("Recovery Send Code Error:", error);
+      // Return JSON instead of crashing
+      res.status(500).json({ 
+        success: false, 
+        error: "Erro interno ao enviar código.",
+        details: error.message 
       });
     }
   });
 
   // API Route: Verify Code
   app.post("/api/recovery/verify-code", async (req, res) => {
-    const { username, code } = req.body;
-    const stored = recoveryCodes.get(username);
+    try {
+      const { username, code } = req.body;
+      const stored = recoveryCodes.get(username);
 
-    if (!stored) {
-      return res.status(400).json({ error: "Nenhum código solicitado para este usuário." });
+      if (!stored) {
+        return res.status(400).json({ error: "Nenhum código solicitado para este usuário." });
+      }
+
+      if (Date.now() > stored.expires) {
+        recoveryCodes.delete(username);
+        return res.status(400).json({ error: "Código expirado. Solicite um novo." });
+      }
+
+      if (stored.code !== code) {
+        return res.status(400).json({ error: "Código incorreto." });
+      }
+
+      res.json({ success: true, message: "Código verificado!" });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
     }
+  });
 
-    if (Date.now() > stored.expires) {
-      recoveryCodes.delete(username);
-      return res.status(400).json({ error: "Código expirado. Solicite um novo." });
-    }
-
-    if (stored.code !== code) {
-      return res.status(400).json({ error: "Código incorreto." });
-    }
-
-    res.json({ success: true, message: "Código verificado!" });
+  // Catch-all for undefined API routes to return JSON 404 instead of HTML
+  app.all("/api/*", (req, res) => {
+    res.status(404).json({ error: `Rota API não encontrada: ${req.method} ${req.url}` });
   });
 
   // Vite middleware for development

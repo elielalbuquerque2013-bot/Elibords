@@ -832,10 +832,15 @@ export default function App() {
 
     setRecoveryStatus("Enviando código...");
     try {
-      console.log(`[RECOVERY] Requesting code for: ${found.name} at ${whatsappToUse}`);
-      const res = await fetch("/api/recovery/send-code", {
+      const apiPath = "/api/recovery/send-code";
+      console.log(`[RECOVERY] Iniciando fetch para ${apiPath}...`);
+      
+      const res = await fetch(apiPath, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
         body: JSON.stringify({ whatsapp: whatsappToUse, username: found.name })
       });
       

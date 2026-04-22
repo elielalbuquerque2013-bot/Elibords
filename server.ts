@@ -3,19 +3,28 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import twilio from "twilio";
 import dotenv from "dotenv";
+import cors from "cors";
 
 dotenv.config();
+
+console.log("[SERVER] Starting server execution...");
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  app.use(cors());
   app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
     next();
   });
 
   app.use(express.json());
+
+  // Root test
+  app.get("/api/test", (req, res) => {
+    res.json({ message: "API is reachable" });
+  });
 
   // API Route: Health check
   app.get("/api/health", (req, res) => {

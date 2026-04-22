@@ -801,8 +801,9 @@ export default function App() {
         setRecoveryError(data.error || "Erro ao enviar código.");
         setRecoveryStatus("");
       }
-    } catch (err) {
-      setRecoveryError("Falha na conexão com o servidor.");
+    } catch (err: any) {
+      console.error("Recovery Fetch Error:", err);
+      setRecoveryError(`Falha na conexão: ${err.message || 'Erro desconhecido'}`);
       setRecoveryStatus("");
     }
   };

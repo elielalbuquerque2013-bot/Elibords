@@ -1,126 +1,99 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
-import twilio from "twilio";
+// Move twilio to lazy import inside the route to avoid startup crashes
+// import twilio from "twilio"; 
 import dotenv from "dotenv";
 import cors from "cors";
+import fs from "fs";
 
 dotenv.config();
 
-console.log("[SERVER] Starting server execution...");
+console.log("[SERVER] Início da execução do script.");
 
 async function startServer() {
+  console.log("[SERVER] Iniciando startServer()...");
   const app = express();
   const PORT = 3000;
 
   app.use(cors());
+  app.use(express.json());
+
+  // Logging middleware
   app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    console.log(`[REQUEST] ${new Date().toISOString()} - ${req.method} ${req.url}`);
     next();
   });
 
-  app.use(express.json());
-
-  // Root test
-  app.get("/api/test", (req, res) => {
-    res.json({ message: "API is reachable" });
+  // TEST API - Definida ANTES de qualquer outra coisa
+  app.get("/api/ping", (req, res) => {
+    console.log("[API] Ping recebido");
+    res.json({ status: "alive", timestamp: new Date().toISOString() });
   });
 
-  // API Route: Health check
+  // Health check
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", time: new Date().toISOString(), env: process.env.NODE_ENV });
+    res.json({ 
+      status: "ok", 
+      time: new Date().toISOString(), 
+      env: process.env.NODE_ENV || "development"
+    });
   });
 
-  // Recovery Memory Store (in production, use Firestore or Redis)
   const recoveryCodes = new Map<string, { code: string; expires: number }>();
 
-  // API Route: Send WhatsApp Verification Code
-  app.post("/api/recovery/send-code", async (req, res) => {
+  // Use a router for /api to avoid conflicts
+  const apiRouter = express.Router();
+
+  apiRouter.post("/recovery/send-code", async (req, res) => {
     try {
       const { whatsapp, username } = req.body;
-      console.log(`[RECOVERY] Request for username: ${username}, whatsapp: ${whatsapp}`);
+      console.log(`[API] Send code: ${username} -> ${whatsapp}`);
 
-      if (!whatsapp) {
-        return res.status(400).json({ error: "Número do WhatsApp é obrigatório." });
-      }
-
-      // Generate 6-digit code
       const code = Math.floor(100000 + Math.random() * 900000).toString();
-      const expires = Date.now() + 10 * 60 * 1000; // 10 minutes
-
+      const expires = Date.now() + 10 * 60 * 1000;
       recoveryCodes.set(username, { code, expires });
 
-      const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim();
-      const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
-      const fromNumber = process.env.TWILIO_WHATSAPP_NUMBER?.trim();
+      const sid = process.env.TWILIO_ACCOUNT_SID;
+      const token = process.env.TWILIO_AUTH_TOKEN;
+      const fromNum = process.env.TWILIO_WHATSAPP_NUMBER;
 
-      const isDevMode = !accountSid || !authToken || !fromNumber || accountSid === "" || authToken === "";
-
-      if (isDevMode) {
-        console.warn("Twilio credentials missing or empty. Logging code for development.");
-        console.log(`[RECOVERY] Code for ${username} (${whatsapp}): ${code}`);
-        return res.json({ 
-          success: true, 
-          message: "Modo de desenvolvimento: Código gerado com sucesso.", 
-          devCode: code,
-          isDev: true 
-        });
+      if (!sid || !token || !fromNum) {
+        console.log(`[DEV-MODE] Código para ${username}: ${code}`);
+        return res.json({ success: true, devCode: code, isDev: true });
       }
 
-      const client = twilio(accountSid, authToken);
-      const to = whatsapp.startsWith('whatsapp:') ? whatsapp : `whatsapp:${whatsapp}`;
-      const from = fromNumber.startsWith('whatsapp:') ? fromNumber : `whatsapp:${fromNumber}`;
-
+      // Lazy import twilio
+      const twilioModule = await import("twilio");
+      const client = twilioModule.default(sid, token);
+      
       await client.messages.create({
-        body: `Seu código de verificação EliBord's é: ${code}. Ele expira em 10 minutos.`,
-        from: from,
-        to: to
+        body: `Seu código EliBord's: ${code}`,
+        from: fromNum.startsWith('whatsapp:') ? fromNum : `whatsapp:${fromNum}`,
+        to: whatsapp.startsWith('whatsapp:') ? whatsapp : `whatsapp:${whatsapp}`
       });
 
-      res.json({ success: true, message: "Código enviado com sucesso!" });
-    } catch (error: any) {
-      console.error("Recovery Send Code Error:", error);
-      // Return JSON instead of crashing
-      res.status(500).json({ 
-        success: false, 
-        error: "Erro interno ao enviar código.",
-        details: error.message 
-      });
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("[API ERROR]", err);
+      res.status(500).json({ error: err.message });
     }
   });
 
-  // API Route: Verify Code
-  app.post("/api/recovery/verify-code", async (req, res) => {
-    try {
-      const { username, code } = req.body;
-      const stored = recoveryCodes.get(username);
-
-      if (!stored) {
-        return res.status(400).json({ error: "Nenhum código solicitado para este usuário." });
-      }
-
-      if (Date.now() > stored.expires) {
-        recoveryCodes.delete(username);
-        return res.status(400).json({ error: "Código expirado. Solicite um novo." });
-      }
-
-      if (stored.code !== code) {
-        return res.status(400).json({ error: "Código incorreto." });
-      }
-
-      res.json({ success: true, message: "Código verificado!" });
-    } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message });
+  apiRouter.post("/recovery/verify-code", (req, res) => {
+    const { username, code } = req.body;
+    const stored = recoveryCodes.get(username);
+    if (!stored || stored.code !== code || Date.now() > stored.expires) {
+      return res.status(400).json({ error: "Código inválido ou expirado" });
     }
+    res.json({ success: true });
   });
 
-  // Catch-all for undefined API routes to return JSON 404 instead of HTML
-  app.all("/api/*", (req, res) => {
-    res.status(404).json({ error: `Rota API não encontrada: ${req.method} ${req.url}` });
-  });
+  app.use("/api", apiRouter);
 
-  // Vite middleware for development
+  // Vite/Static logic
   if (process.env.NODE_ENV !== "production") {
+    console.log("[SERVER] Carregando Vite no modo Middleware...");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -129,25 +102,17 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+    app.get('*', (req, res) => res.sendFile(path.join(distPath, 'index.html')));
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[SERVER] Ready on port ${PORT}`);
+    console.log(`[SERVER] Rodando com sucesso na porta ${PORT}`);
+    // Create a signal file to verify startup success
+    fs.writeFileSync("server_ready.txt", `Ready at ${new Date().toISOString()}`);
   });
 }
 
-// Global process error handling
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('[SERVER] Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('[SERVER] Uncaught Exception:', error);
-});
-
 startServer().catch(err => {
-  console.error("[SERVER] Fatal startup error:", err);
+  console.error("[SERVER] ERRO FATAL NA INICIALIZAÇÃO:", err);
+  fs.writeFileSync("server_error.txt", err.stack || err.message);
 });

@@ -832,6 +832,7 @@ export default function App() {
 
     setRecoveryStatus("Enviando código...");
     try {
+      console.log(`[RECOVERY] Requesting code for: ${found.name} at ${whatsappToUse}`);
       const res = await fetch("/api/recovery/send-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -841,17 +842,18 @@ export default function App() {
       const contentType = res.headers.get("content-type");
       if (!res.ok) {
         const errorText = await res.text();
-        console.error("Server error response:", errorText);
+        console.error("[RECOVERY] Server error response:", errorText);
         throw new Error(`Erro no servidor (${res.status}): ${errorText.slice(0, 50)}`);
       }
 
+      const text = await res.text();
       if (!contentType || !contentType.includes("application/json")) {
-        const text = await res.text();
-        console.error("Non-JSON response received:", text);
-        throw new Error("O servidor retornou uma resposta inválida (não-JSON).");
+        console.error("[RECOVERY] Non-JSON response received:", text);
+        const previewText = text.length > 50 ? text.slice(0, 50) + "..." : text;
+        throw new Error(`Servidor retornou formato inválido. Recebido: "${previewText}"`);
       }
 
-      const data = await res.json();
+      const data = JSON.parse(text);
       if (data.success) {
         setRecoveryStep('verify');
         if (data.devCode) {

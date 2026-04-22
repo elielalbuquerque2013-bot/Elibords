@@ -126,8 +126,19 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`[SERVER] Ready on port ${PORT}`);
   });
 }
 
-startServer();
+// Global process error handling
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[SERVER] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[SERVER] Uncaught Exception:', error);
+});
+
+startServer().catch(err => {
+  console.error("[SERVER] Fatal startup error:", err);
+});

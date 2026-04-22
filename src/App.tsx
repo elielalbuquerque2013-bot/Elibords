@@ -145,6 +145,15 @@ export default function App() {
   const [adminStatusFilter, setAdminStatusFilter] = useState("Pendente");
   const [viewingImage, setViewingImage] = useState<string | null>(null);
 
+  // Recovery State
+  const [recoveryStep, setRecoveryStep] = useState<'none' | 'username' | 'whatsapp' | 'verify' | 'new_password'>('none');
+  const [recoveryUsername, setRecoveryUsername] = useState("");
+  const [recoveryWhatsappInput, setRecoveryWhatsappInput] = useState("");
+  const [recoveryCode, setRecoveryCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [recoveryStatus, setRecoveryStatus] = useState("");
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+
   // Auth and Storage initialization
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -736,6 +745,121 @@ export default function App() {
     }
   };
 
+  const handleStartRecovery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRecoveryError(null);
+    
+    const cleanWhatsapp = recoveryWhatsappInput.replace(/\D/g, "");
+    if (!cleanWhatsapp) {
+      setRecoveryError("Por favor, digite seu número de WhatsApp.");
+      return;
+    }
+
+    // Find user by WhatsApp
+    const matchedUser = (Object.entries(users) as [string, any][]).find(([_, data]) => {
+      const storedWhatsapp = data.whatsapp ? (data.whatsapp as string).replace(/\D/g, "") : "";
+      return (storedWhatsapp && storedWhatsapp.includes(cleanWhatsapp)) || cleanWhatsapp.includes(storedWhatsapp);
+    });
+
+    // More precise check: clean everything and compare
+    const findUser = () => {
+      for (const [name, data] of (Object.entries(users) as [string, any][])) {
+        const stored = ((data.whatsapp as string) || "").replace(/\D/g, "");
+        if (stored && (stored === cleanWhatsapp || stored.slice(-9) === cleanWhatsapp.slice(-9))) {
+          return name;
+        }
+      }
+      return null;
+    };
+
+    const foundName = findUser();
+
+    if (!foundName) {
+      setRecoveryError("Nenhum usuário encontrado com este WhatsApp cadastrado.");
+      return;
+    }
+
+    setRecoveryUsername(foundName);
+    const whatsappToUse = users[foundName].whatsapp;
+
+    setRecoveryStatus("Enviando código...");
+    try {
+      const res = await fetch("/api/recovery/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ whatsapp: whatsappToUse, username: foundName })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRecoveryStep('verify');
+        if (data.devCode) {
+          setRecoveryStatus(`MODO TESTE: Digite ${data.devCode} na próxima tela.`);
+        } else {
+          setRecoveryStatus("");
+        }
+      } else {
+        setRecoveryError(data.error || "Erro ao enviar código.");
+        setRecoveryStatus("");
+      }
+    } catch (err) {
+      setRecoveryError("Falha na conexão com o servidor.");
+      setRecoveryStatus("");
+    }
+  };
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRecoveryError(null);
+    setRecoveryStatus("Verificando...");
+    try {
+      const res = await fetch("/api/recovery/verify-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: recoveryUsername, code: recoveryCode })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRecoveryStep('new_password');
+        setRecoveryStatus("");
+      } else {
+        setRecoveryError(data.error || "Código inválido.");
+        setRecoveryStatus("");
+      }
+    } catch (err) {
+      setRecoveryError("Falha na conexão.");
+      setRecoveryStatus("");
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRecoveryError(null);
+    if (!newPassword) {
+      setRecoveryError("Digite a nova senha.");
+      return;
+    }
+
+    try {
+      setRecoveryStatus("Atualizando senha...");
+      await updateDoc(doc(db, "users", recoveryUsername), {
+        password: newPassword
+      });
+      setRecoveryStatus("Senha atualizada com sucesso!");
+      setTimeout(() => {
+        setRecoveryStep('none');
+        setSearchPassword(newPassword);
+        setSearchName(recoveryUsername);
+        setRecoveryUsername("");
+        setNewPassword("");
+        setRecoveryCode("");
+        setRecoveryStatus("");
+      }, 2000);
+    } catch (err) {
+      setRecoveryError("Erro ao salvar nova senha.");
+      setRecoveryStatus("");
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-brand-light">
@@ -1238,34 +1362,116 @@ export default function App() {
                       <CardTitle className="text-3xl font-display tracking-tight text-brand-dark">Acompanhar Pedidos</CardTitle>
                       <CardDescription className="text-brand-dark/50">Digite seus dados de acesso</CardDescription>
                     </CardHeader>
-                    <form onSubmit={handleCustomerLogin}>
-                      <CardContent className="space-y-6 p-10">
-                        <div className="space-y-4">
-                          <Label className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-primary">Seu Nome</Label>
-                          <Input 
-                            placeholder="Ex: Maria Silva" 
-                            value={searchName}
-                            onChange={(e) => setSearchName(e.target.value)}
-                            className="glass-input h-14 text-lg"
-                          />
-                        </div>
-                        <div className="space-y-4">
-                          <Label className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-primary">Sua Senha</Label>
-                          <Input 
-                            type="password"
-                            placeholder="Digite sua senha" 
-                            value={searchPassword}
-                            onChange={(e) => setSearchPassword(e.target.value)}
-                            className="glass-input h-14 text-lg"
-                          />
-                        </div>
-                      </CardContent>
-                      <CardFooter className="p-6 md:p-10 bg-brand-primary/5 border-t border-brand-primary/10">
-                        <Button type="submit" className="vibrant-button w-full h-12 md:h-14 text-base md:text-lg">
-                          Entrar e Ver Pedidos
-                        </Button>
-                      </CardFooter>
-                    </form>
+                    {recoveryStep === 'none' ? (
+                      <form onSubmit={handleCustomerLogin}>
+                        <CardContent className="space-y-6 p-10">
+                          <div className="space-y-2">
+                            <Label className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-primary">Seu Nome</Label>
+                            <Input 
+                              placeholder="Ex: Maria Silva" 
+                              value={searchName}
+                              onChange={(e) => setSearchName(e.target.value)}
+                              className="glass-input h-14 text-lg"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <Label className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-primary">Sua Senha</Label>
+                              <button 
+                                type="button" 
+                                onClick={() => {
+                                  setRecoveryStep('username');
+                                  setRecoveryWhatsappInput("");
+                                  setRecoveryUsername("");
+                                }}
+                                className="text-[10px] text-brand-primary font-bold uppercase hover:underline"
+                              >
+                                Esqueci a senha
+                              </button>
+                            </div>
+                            <Input 
+                              type="password"
+                              placeholder="Digite sua senha" 
+                              value={searchPassword}
+                              onChange={(e) => setSearchPassword(e.target.value)}
+                              className="glass-input h-14 text-lg"
+                            />
+                          </div>
+                        </CardContent>
+                        <CardFooter className="p-6 md:p-10 bg-brand-primary/5 border-t border-brand-primary/10">
+                          <Button type="submit" className="vibrant-button w-full h-12 md:h-14 text-base md:text-lg">
+                            Entrar e Ver Pedidos
+                          </Button>
+                        </CardFooter>
+                      </form>
+                    ) : (
+                      <div className="p-10 space-y-6">
+                        {recoveryStep === 'username' && (
+                          <form onSubmit={handleStartRecovery} className="space-y-6">
+                            <div className="space-y-4">
+                              <Label className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-primary">Confirmar WhatsApp</Label>
+                              <Input 
+                                placeholder="Seu WhatsApp (apenas números)" 
+                                value={recoveryWhatsappInput}
+                                onChange={(e) => setRecoveryWhatsappInput(e.target.value)}
+                                className="glass-input h-14"
+                              />
+                              <p className="text-[10px] text-brand-dark/40 italic">
+                                Usaremos este número para localizar sua conta e enviar o código.
+                              </p>
+                            </div>
+                            {recoveryError && <p className="text-red-500 text-xs font-bold uppercase">{recoveryError}</p>}
+                            {recoveryStatus && <p className="text-brand-primary text-xs font-bold uppercase">{recoveryStatus}</p>}
+                            <div className="flex gap-2">
+                              <Button variant="ghost" className="flex-1" onClick={() => setRecoveryStep('none')}>Cancelar</Button>
+                              <Button type="submit" className="vibrant-button flex-1" disabled={recoveryStatus === "Enviando código..."}>Receber Código</Button>
+                            </div>
+                          </form>
+                        )}
+
+                        {recoveryStep === 'verify' && (
+                          <form onSubmit={handleVerifyCode} className="space-y-6">
+                            <div className="text-center space-y-2">
+                              <p className="text-sm font-medium text-brand-dark">Confirmando sua identidade para {recoveryUsername}</p>
+                            </div>
+                            <div className="space-y-4">
+                              <Label className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-primary text-center block">Código de Verificação</Label>
+                              <Input 
+                                placeholder="000000" 
+                                value={recoveryCode}
+                                onChange={(e) => setRecoveryCode(e.target.value)}
+                                className="glass-input h-16 text-center text-3xl font-bold tracking-[0.5em]"
+                                maxLength={6}
+                              />
+                            </div>
+                            {recoveryError && <p className="text-red-500 text-xs font-bold uppercase text-center">{recoveryError}</p>}
+                            {recoveryStatus && <p className="text-brand-primary text-xs font-bold uppercase text-center">{recoveryStatus}</p>}
+                            <div className="flex gap-2">
+                              <Button variant="ghost" className="flex-1" onClick={() => setRecoveryStep('username')}>Voltar</Button>
+                              <Button type="submit" className="vibrant-button flex-1" disabled={recoveryStatus === "Verificando..."}>Verificar</Button>
+                            </div>
+                          </form>
+                        )}
+
+                        {recoveryStep === 'new_password' && (
+                          <form onSubmit={handleResetPassword} className="space-y-6">
+                            <div className="space-y-4">
+                              <Label className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-primary">Nova Senha</Label>
+                              <Input 
+                                type="password"
+                                placeholder="Digite sua nova senha" 
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                className="glass-input h-14"
+                              />
+                            </div>
+                             {recoveryError && <p className="text-red-500 text-xs font-bold uppercase">{recoveryError}</p>}
+                             {recoveryStatus && <p className="text-brand-primary text-xs font-bold uppercase">{recoveryStatus}</p>}
+                            <Button type="submit" className="vibrant-button w-full" disabled={!!recoveryStatus && !recoveryStatus.includes('sucesso')}>Atualizar Senha</Button>
+                          </form>
+                        )}
+                      </div>
+                    )}
                   </Card>
                 ) : (
                   <div className="space-y-8">

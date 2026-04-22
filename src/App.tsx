@@ -156,6 +156,12 @@ export default function App() {
 
   // Auth and Storage initialization
   useEffect(() => {
+    // Check API connectivity
+    fetch("/api/health")
+      .then(r => r.json())
+      .then(d => console.log("[API] Health check ok:", d))
+      .catch(e => console.error("[API] Health check failed. API may be unreachable.", e));
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
       if (!user) {

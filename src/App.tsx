@@ -755,39 +755,79 @@ export default function App() {
       return;
     }
 
-    // Find user by WhatsApp
-    const matchedUser = (Object.entries(users) as [string, any][]).find(([_, data]) => {
-      const storedWhatsapp = data.whatsapp ? (data.whatsapp as string).replace(/\D/g, "") : "";
-      return (storedWhatsapp && storedWhatsapp.includes(cleanWhatsapp)) || cleanWhatsapp.includes(storedWhatsapp);
-    });
+    setRecoveryStatus("Localizando conta...");
 
     // More precise check: clean everything and compare
-    const findUser = () => {
-      for (const [name, data] of (Object.entries(users) as [string, any][])) {
+    const findUser = async () => {
+      let currentUsers = { ...users };
+      
+      // Fallback: Check localStorage too
+      const localUsersStr = localStorage.getItem("elibords_users");
+      if (localUsersStr) {
+        try {
+          const localUsers = JSON.parse(localUsersStr);
+          currentUsers = { ...localUsers, ...currentUsers };
+        } catch (e) {}
+      }
+
+      // If still empty or as backup, try manual firestore fetch
+      if (Object.keys(currentUsers).length === 0) {
+        try {
+          const { getDocs, collection } = await import("firebase/firestore");
+          const snapshot = await getDocs(collection(db, "users"));
+          snapshot.docs.forEach(doc => {
+            currentUsers[doc.id] = doc.data() as any;
+          });
+          setUsers(currentUsers);
+        } catch (err) {
+          console.error("Erro ao carregar usuários manualmente:", err);
+        }
+      }
+
+      const input = cleanWhatsapp;
+      console.log("Buscando WhatsApp:", input, "em", Object.keys(currentUsers).length, "usuários");
+
+      for (const [name, data] of (Object.entries(currentUsers) as [string, any][])) {
         const stored = ((data.whatsapp as string) || "").replace(/\D/g, "");
-        if (stored && (stored === cleanWhatsapp || stored.slice(-9) === cleanWhatsapp.slice(-9))) {
-          return name;
+        if (!stored) continue;
+
+        // 1. Exact match
+        if (stored === input) return { name, whatsapp: data.whatsapp };
+
+        // 2. Multi-length matching (handles 9-digit diff and 55 prefix)
+        // Check if one is a suffix of the other (at least 8 digits)
+        const minMatch = 8;
+        if (stored.length >= minMatch && input.length >= minMatch) {
+          const sSuffix = stored.slice(-minMatch);
+          const iSuffix = input.slice(-minMatch);
+          if (sSuffix === iSuffix) return { name, whatsapp: data.whatsapp };
+        }
+        
+        // 3. Contains (handles 55 prefix or DDD missing)
+        if (stored.length >= 7 && input.length >= 7) {
+          if (stored.includes(input) || input.includes(stored)) return { name, whatsapp: data.whatsapp };
         }
       }
       return null;
     };
 
-    const foundName = findUser();
+    const found = await findUser();
 
-    if (!foundName) {
-      setRecoveryError("Nenhum usuário encontrado com este WhatsApp cadastrado.");
+    if (!found) {
+      setRecoveryError("Nenhum usuário encontrado com este WhatsApp. Verifique o número ou entre em contato.");
+      setRecoveryStatus("");
       return;
     }
 
-    setRecoveryUsername(foundName);
-    const whatsappToUse = users[foundName].whatsapp;
+    setRecoveryUsername(found.name);
+    const whatsappToUse = found.whatsapp;
 
     setRecoveryStatus("Enviando código...");
     try {
       const res = await fetch("/api/recovery/send-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ whatsapp: whatsappToUse, username: foundName })
+        body: JSON.stringify({ whatsapp: whatsappToUse, username: found.name })
       });
       const data = await res.json();
       if (data.success) {

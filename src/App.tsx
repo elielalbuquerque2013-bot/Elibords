@@ -117,8 +117,10 @@ export default function App() {
   const orderToShow = liveCurrentOrder || editingOrder;
   const [users, setUsers] = useState<Record<string, { password: string; whatsapp: string; role?: string }>>({});
   const [currentUser, setCurrentUser] = useState<string | null>(localStorage.getItem("eli_embroidery_user"));
-  const [searchName, setSearchName] = useState("");
+  const [searchWhatsapp, setSearchWhatsapp] = useState("");
   const [searchPassword, setSearchPassword] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Form State
   const [customerName, setCustomerName] = useState("");
@@ -737,18 +739,57 @@ export default function App() {
 
   const handleCustomerLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (users[searchName]) {
-      if (users[searchName].password === searchPassword) {
-        setCurrentUser(searchName);
-        localStorage.setItem("eli_embroidery_user", searchName);
-        setSearchName("");
-        setSearchPassword("");
-      } else {
-        alert("Senha incorreta!");
-      }
-    } else {
-      alert("Usuário não encontrado!");
+    setLoginError(null);
+    setIsLoggingIn(true);
+    
+    console.log("[LOGIN] Iniciando tentativa de login via WhatsApp...");
+    
+    const cleanSearchWhatsapp = searchWhatsapp.replace(/\D/g, "");
+    if (!cleanSearchWhatsapp) {
+      setLoginError("Por favor, digite seu WhatsApp.");
+      setIsLoggingIn(false);
+      return;
     }
+
+    if (!searchPassword) {
+      setLoginError("Por favor, digite sua senha.");
+      setIsLoggingIn(false);
+      return;
+    }
+
+    // Small timeout to give visual feedback
+    setTimeout(() => {
+      console.log(`[LOGIN] Buscando por: ${cleanSearchWhatsapp}`);
+      
+      if (Object.keys(users).length === 0) {
+        setLoginError("Sincronizando dados... tente em alguns segundos.");
+        setIsLoggingIn(false);
+        return;
+      }
+
+      // Find user by WhatsApp number
+      const foundUserEntry = Object.entries(users).find(([name, data]) => {
+        const storedWhatsapp = ((data as any).whatsapp || "").replace(/\D/g, "");
+        return storedWhatsapp === cleanSearchWhatsapp || 
+               (storedWhatsapp.length >= 8 && cleanSearchWhatsapp.length >= 8 && 
+                storedWhatsapp.endsWith(cleanSearchWhatsapp.slice(-8)));
+      });
+
+      if (foundUserEntry) {
+        const [username, userData] = foundUserEntry as [string, any];
+        if (userData.password === searchPassword) {
+          setCurrentUser(username);
+          localStorage.setItem("eli_embroidery_user", username);
+          setSearchWhatsapp("");
+          setSearchPassword("");
+        } else {
+          setLoginError("Senha incorreta!");
+        }
+      } else {
+        setLoginError("Nenhum usuário encontrado com este WhatsApp.");
+      }
+      setIsLoggingIn(false);
+    }, 600);
   };
 
   const handleStartRecovery = async (e: React.FormEvent) => {
@@ -924,7 +965,7 @@ export default function App() {
       setTimeout(() => {
         setRecoveryStep('none');
         setSearchPassword(newPassword);
-        setSearchName(recoveryUsername);
+        setSearchWhatsapp(recoveryWhatsappInput);
         setRecoveryUsername("");
         setNewPassword("");
         setRecoveryCode("");
@@ -1085,7 +1126,7 @@ export default function App() {
                             <Label className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-primary">Sua Senha (para acompanhar)</Label>
                             <Input 
                               type="password"
-                              placeholder="Crie uma senha simples" 
+                              placeholder="Crie sua senha" 
                               value={customerPassword}
                               onChange={(e) => setCustomerPassword(e.target.value)}
                               className="glass-input h-14 text-lg"
@@ -1442,11 +1483,11 @@ export default function App() {
                       <form onSubmit={handleCustomerLogin}>
                         <CardContent className="space-y-6 p-10">
                           <div className="space-y-2">
-                            <Label className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-primary">Seu Nome</Label>
+                            <Label className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-primary">Seu WhatsApp</Label>
                             <Input 
-                              placeholder="Ex: Maria Silva" 
-                              value={searchName}
-                              onChange={(e) => setSearchName(e.target.value)}
+                              placeholder="Digite seu número com DDD" 
+                              value={searchWhatsapp}
+                              onChange={(e) => setSearchWhatsapp(e.target.value)}
                               className="glass-input h-14 text-lg"
                             />
                           </div>
@@ -1473,10 +1514,20 @@ export default function App() {
                               className="glass-input h-14 text-lg"
                             />
                           </div>
+                          {loginError && (
+                            <div className="p-3 bg-red-50 border border-red-100 rounded-lg flex items-center gap-2 text-red-600 text-xs font-bold uppercase">
+                              <AlertCircle className="w-4 h-4" />
+                              {loginError}
+                            </div>
+                          )}
                         </CardContent>
                         <CardFooter className="p-6 md:p-10 bg-brand-primary/5 border-t border-brand-primary/10">
-                          <Button type="submit" className="vibrant-button w-full h-12 md:h-14 text-base md:text-lg">
-                            Entrar e Ver Pedidos
+                          <Button 
+                            type="submit" 
+                            disabled={isLoggingIn}
+                            className="vibrant-button w-full h-12 md:h-14 text-base md:text-lg"
+                          >
+                            {isLoggingIn ? "Autenticando..." : "Entrar e Ver Pedidos"}
                           </Button>
                         </CardFooter>
                       </form>

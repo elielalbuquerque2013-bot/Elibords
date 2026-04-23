@@ -89,6 +89,28 @@ async function startServer() {
     res.json({ success: true });
   });
 
+  apiRouter.get("/proxy-image", async (req, res) => {
+    try {
+      const imageUrl = req.query.url as string;
+      if (!imageUrl) return res.status(400).send("URL is required");
+
+      const response = await fetch(imageUrl);
+      if (!response.ok) throw new Error(`Failed to fetch: ${response.statusText}`);
+
+      const contentType = response.headers.get("content-type");
+      if (contentType) res.setHeader("Content-Type", contentType);
+      
+      // Add generic CORS headers
+      res.setHeader("Access-Control-Allow-Origin", "*");
+
+      const arrayBuffer = await response.arrayBuffer();
+      res.send(Buffer.from(arrayBuffer));
+    } catch (err) {
+      console.error("[PROXY ERROR]", err);
+      res.status(500).send("Error proxying image");
+    }
+  });
+
   app.use("/api", apiRouter);
 
   // Vite/Static logic

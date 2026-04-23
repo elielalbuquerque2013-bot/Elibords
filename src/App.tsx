@@ -696,9 +696,32 @@ export default function App() {
     setViewingImage(imageUrl);
   };
 
+  const cleanFileName = (name: string) => {
+    if (!name) return "";
+    // Matches the pattern used in storage: orderId-timestamp-filename
+    // Regex explanation: look for something that looks like an ID followed by hyphen, 
+    // then a long timestamp followed by hyphen.
+    // However, it's safer to just look for the LAST hyphen if we know the storage path structure.
+    // The pattern is: matrices/${orderId}-${Date.now()}-${file.name}
+    // So the original name starts after the second hyphen.
+    
+    // Check if it matches the pattern with at least two hyphens and looks like it has a timestamp
+    const parts = name.split('-');
+    if (parts.length >= 3) {
+      // If the second part has many digits, it's likely a timestamp
+      if (/^\d{10,}$/.test(parts[1])) {
+        // Return everything after the second hyphen
+        return parts.slice(2).join('-');
+      }
+    }
+    return name;
+  };
+
   const downloadFile = async (url: string, fileName: string) => {
     try {
-      setSubmitStatus(`Iniciando download...`);
+      const cleanName = cleanFileName(fileName);
+      setSubmitStatus(`Baixando: ${cleanName}`);
+      
       // Use proxy for external URLs to avoid CORS issues with Blob fetch
       const finalUrl = url.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(url)}` : url;
       
@@ -709,7 +732,7 @@ export default function App() {
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = blobUrl;
-      link.download = fileName;
+      link.download = cleanName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -1745,7 +1768,7 @@ export default function App() {
                                     onClick={() => downloadFile(file.url, file.name || `matriz-${idx + 1}.pes`)}
                                     className="w-full bg-emerald-500 hover:bg-emerald-600 text-white h-12 rounded-xl font-bold flex items-center justify-between px-6 gap-2"
                                   >
-                                    <span className="truncate flex-1 text-left">{file.name || `Matriz ${idx + 1}`}</span>
+                                    <span className="truncate flex-1 text-left">{cleanFileName(file.name) || `Matriz ${idx + 1}`}</span>
                                     <Upload className="w-4 h-4 rotate-180 flex-shrink-0" />
                                   </Button>
                                 ))
@@ -2319,7 +2342,7 @@ export default function App() {
                                 <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
                                   <Upload className="w-4 h-4 text-emerald-600 rotate-180" />
                                 </div>
-                                <span className="text-sm font-medium text-emerald-800 truncate">{file.name}</span>
+                                <span className="text-sm font-medium text-emerald-800 truncate" title={file.name}>{cleanFileName(file.name)}</span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <Button 

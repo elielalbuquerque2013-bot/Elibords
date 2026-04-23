@@ -380,21 +380,42 @@ export default function App() {
     try {
       setSubmitStatus("Verificando cadastro...");
       if (!currentUser) {
+        setSubmitStatus("Sincronizando banco...");
+        
+        let currentUsers = { ...users };
+        // Fallback: If local users state is empty, fetch once from server to be safe
+        if (Object.keys(currentUsers).length === 0) {
+          try {
+            const snapshot = await getDocs(collection(db, "users"));
+            snapshot.docs.forEach(docSnap => {
+              currentUsers[docSnap.id] = docSnap.data() as any;
+            });
+            setUsers(currentUsers);
+          } catch (err) {
+            console.error("Erro ao sincronizar usuários:", err);
+          }
+        }
+
         // Check if WhatsApp is already used by another user name
         const cleanCustomerWhatsapp = customerWhatsapp.replace(/\D/g, "");
-        const whatsappUsedBy = Object.entries(users).find(([name, data]) => {
+        const whatsappUsedBy = Object.entries(currentUsers).find(([name, data]) => {
           const storedWhatsapp = ((data as any).whatsapp || "").replace(/\D/g, "");
-          return storedWhatsapp === cleanCustomerWhatsapp && name !== customerName;
+          // Robust match: exact OR suffix match (last 8 digits) to ignore 55, DDD etc if different
+          const isMatch = storedWhatsapp === cleanCustomerWhatsapp || 
+                         (storedWhatsapp.length >= 8 && cleanCustomerWhatsapp.length >= 8 && 
+                          storedWhatsapp.endsWith(cleanCustomerWhatsapp.slice(-8)));
+          
+          return isMatch && name !== customerName;
         });
 
         if (whatsappUsedBy) {
-          setFormError(`O WhatsApp ${customerWhatsapp} já está cadastrado para o cliente "${whatsappUsedBy[0]}". Por favor, use o login com este número na aba "Meus Pedidos".`);
+          setFormError(`O WhatsApp ${customerWhatsapp} já está cadastrado para o cliente "${whatsappUsedBy[0]}". Por favor, use este número para fazer login na aba "Meus Pedidos".`);
           setIsSubmitting(false);
           setSubmitStatus("");
           return;
         }
 
-        if (users[customerName]) {
+        if (currentUsers[customerName]) {
           if (users[customerName].password !== customerPassword) {
             setFormError("Este nome já está em uso. Por favor, use a senha correta ou outro nome.");
             setIsSubmitting(false);

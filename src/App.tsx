@@ -724,32 +724,56 @@ export default function App() {
   };
 
   const downloadFile = async (url: string, fileName: string) => {
+    const cleanName = cleanFileName(fileName);
     try {
-      const cleanName = cleanFileName(fileName);
       setSubmitStatus(`Baixando: ${cleanName}`);
       
-      // Use proxy for external URLs to avoid CORS issues with Blob fetch
-      // Also pass the filename so the proxy can set the correct headers
-      const finalUrl = url.startsWith('http') 
-        ? `/api/proxy-image?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(cleanName)}` 
-        : url;
+      // Attempt 1: Try Proxy (Works in AI Studio and if server is alive)
+      try {
+        const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(cleanName)}`;
+        const proxyResp = await fetch(proxyUrl);
+        if (proxyResp.ok) {
+          const blob = await proxyResp.blob();
+          const blobUrl = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = cleanName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(blobUrl);
+          setSubmitStatus("");
+          return;
+        }
+      } catch (e) {
+        console.warn("Proxy download failed, trying direct fetch...", e);
+      }
+
+      // Attempt 2: Try Direct Fetch (Works if no CORS issues)
+      try {
+        const directResp = await fetch(url);
+        if (directResp.ok) {
+          const blob = await directResp.blob();
+          const blobUrl = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = cleanName; // This forces the name if fetch succeeds
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(blobUrl);
+          setSubmitStatus("");
+          return;
+        }
+      } catch (e) {
+        console.warn("Direct fetch failed, falling back to window.open", e);
+      }
       
-      const response = await fetch(finalUrl);
-      if (!response.ok) throw new Error("Download failed");
-      
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = cleanName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
+      // Final Fallback: Open in new tab (might have the long name if old file)
+      window.open(url, '_blank');
       setSubmitStatus("");
     } catch (error) {
-      console.error("Download failed:", error);
-      // Fallback: just open in new tab
+      console.error("All download methods failed:", error);
       window.open(url, '_blank');
       setSubmitStatus("");
     }

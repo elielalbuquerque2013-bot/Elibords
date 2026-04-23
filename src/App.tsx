@@ -554,7 +554,13 @@ export default function App() {
 
       try {
         const storageRef = ref(storage, `matrices/${orderId}-${Date.now()}-${file.name}`);
-        const uploadResult = await uploadBytes(storageRef, file);
+        const metadata = {
+          contentDisposition: `attachment; filename="${file.name}"`,
+          customMetadata: {
+            'originalName': file.name
+          }
+        };
+        const uploadResult = await uploadBytes(storageRef, file, metadata);
         fileUrl = await getDownloadURL(uploadResult.ref);
         console.log("Matrix uploaded to Firebase Storage:", fileUrl);
       } catch (storageErr: any) {
@@ -723,7 +729,10 @@ export default function App() {
       setSubmitStatus(`Baixando: ${cleanName}`);
       
       // Use proxy for external URLs to avoid CORS issues with Blob fetch
-      const finalUrl = url.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(url)}` : url;
+      // Also pass the filename so the proxy can set the correct headers
+      const finalUrl = url.startsWith('http') 
+        ? `/api/proxy-image?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(cleanName)}` 
+        : url;
       
       const response = await fetch(finalUrl);
       if (!response.ok) throw new Error("Download failed");

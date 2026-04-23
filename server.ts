@@ -92,6 +92,7 @@ async function startServer() {
   apiRouter.get("/proxy-image", async (req, res) => {
     try {
       const imageUrl = req.query.url as string;
+      const fileName = req.query.filename as string;
       if (!imageUrl) return res.status(400).send("URL is required");
 
       const response = await fetch(imageUrl);
@@ -99,6 +100,11 @@ async function startServer() {
 
       const contentType = response.headers.get("content-type");
       if (contentType) res.setHeader("Content-Type", contentType);
+      
+      if (fileName) {
+        // Force the browser to use this filename even if proxying
+        res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+      }
       
       // Add generic CORS headers
       res.setHeader("Access-Control-Allow-Origin", "*");

@@ -380,6 +380,20 @@ export default function App() {
     try {
       setSubmitStatus("Verificando cadastro...");
       if (!currentUser) {
+        // Check if WhatsApp is already used by another user name
+        const cleanCustomerWhatsapp = customerWhatsapp.replace(/\D/g, "");
+        const whatsappUsedBy = Object.entries(users).find(([name, data]) => {
+          const storedWhatsapp = ((data as any).whatsapp || "").replace(/\D/g, "");
+          return storedWhatsapp === cleanCustomerWhatsapp && name !== customerName;
+        });
+
+        if (whatsappUsedBy) {
+          setFormError(`O WhatsApp ${customerWhatsapp} já está cadastrado para o cliente "${whatsappUsedBy[0]}". Por favor, use o login com este número na aba "Meus Pedidos".`);
+          setIsSubmitting(false);
+          setSubmitStatus("");
+          return;
+        }
+
         if (users[customerName]) {
           if (users[customerName].password !== customerPassword) {
             setFormError("Este nome já está em uso. Por favor, use a senha correta ou outro nome.");

@@ -93,6 +93,7 @@ interface Order {
   textContent?: string;
   fontStyle?: string;
   notes?: string;
+  fabricType?: string;
   customerName: string;
   customerWhatsapp?: string;
   fileUrl?: string;
@@ -137,6 +138,7 @@ export default function App() {
   const [formatDesired, setFormatDesired] = useState("");
   const [deliveryDate, setDeliveryDate] = useState<Date | undefined>(undefined);
   const [notes, setNotes] = useState("");
+  const [fabricType, setFabricType] = useState("");
   const [customerPassword, setCustomerPassword] = useState("");
   const [customerWhatsapp, setCustomerWhatsapp] = useState("");
   const [intent, setIntent] = useState<"budget" | "produce">("produce");
@@ -496,6 +498,7 @@ export default function App() {
         if (fontStyle) newOrderData.fontStyle = fontStyle;
       }
       if (notes) newOrderData.notes = notes;
+      if (fabricType) newOrderData.fabricType = fabricType;
       if (whatsappToUse) newOrderData.customerWhatsapp = whatsappToUse;
 
       // Final safety check: remove any undefined or null values
@@ -1103,6 +1106,7 @@ export default function App() {
                 setOrderType("image");
                 setImage(null);
                 setImagePreview(null);
+                setFabricType("");
                 setActiveTab("my-orders");
               }}
               className="vibrant-button w-full h-12 md:h-14 text-base md:text-lg"
@@ -1455,6 +1459,20 @@ export default function App() {
 
                         <div className="space-y-4">
                           <Label className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-primary flex items-center gap-2">
+                            <PlusCircle className="w-3 h-3" /> Tipo de Tecido
+                          </Label>
+                          <Input 
+                            type="text"
+                            placeholder="Ex: Malha, Piquet, Jeans..." 
+                            value={fabricType}
+                            onChange={(e) => setFabricType(e.target.value)}
+                            className="glass-input h-12"
+                          />
+                          <p className="text-[9px] text-brand-primary/60 font-medium uppercase tracking-wider">Onde o bordado será aplicado</p>
+                        </div>
+
+                        <div className="space-y-4">
+                          <Label className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-primary flex items-center gap-2">
                             <FileType className="w-3 h-3" /> Formato de Arquivo
                           </Label>
                           <Select value={formatDesired} onValueChange={setFormatDesired}>
@@ -1790,6 +1808,12 @@ export default function App() {
                                 <p className="text-[10px] uppercase tracking-widest font-bold text-brand-primary mb-1">Formato</p>
                                 <p className="text-xs font-medium">{order.format}</p>
                               </div>
+                              {order.fabricType && (
+                                <div className="col-span-2 border-t border-brand-primary/5 pt-3">
+                                  <p className="text-[10px] uppercase tracking-widest font-bold text-brand-primary mb-1">Tecido</p>
+                                  <p className="text-xs font-medium">{order.fabricType}</p>
+                                </div>
+                              )}
                             </div>
                           </CardContent>
                            {order.status === "Concluído" && (order.fileUrl || (order.matrixFiles && order.matrixFiles.length > 0)) && (
@@ -2273,6 +2297,10 @@ export default function App() {
                     <div className="space-y-1">
                       <p className="text-[10px] uppercase tracking-widest font-bold text-brand-primary">Formato</p>
                       <p className="text-sm font-medium">{orderToShow.format}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[10px] uppercase tracking-widest font-bold text-brand-primary">Tecido</p>
+                      <p className="text-sm font-medium">{orderToShow.fabricType || "Não informado"}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-[10px] uppercase tracking-widest font-bold text-brand-primary">Tipo</p>

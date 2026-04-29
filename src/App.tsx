@@ -123,6 +123,14 @@ export default function App() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
+  // Auto-set password from WhatsApp for login
+  useEffect(() => {
+    const clean = searchWhatsapp.replace(/\D/g, "");
+    if (clean.length >= 4) {
+      setSearchPassword(clean.slice(-4));
+    }
+  }, [searchWhatsapp]);
+
   // Form State
   const [customerName, setCustomerName] = useState("");
   const [orderType, setOrderType] = useState<"image" | "text">("image");
@@ -142,6 +150,15 @@ export default function App() {
   const [customerPassword, setCustomerPassword] = useState("");
   const [customerWhatsapp, setCustomerWhatsapp] = useState("");
   const [intent, setIntent] = useState<"budget" | "produce">("produce");
+  
+  // Auto-set password from WhatsApp for registration
+  useEffect(() => {
+    const clean = customerWhatsapp.replace(/\D/g, "");
+    if (clean.length >= 4) {
+      setCustomerPassword(clean.slice(-4));
+    }
+  }, [customerWhatsapp]);
+
   const [firebaseUser, setFirebaseUser] = useState<any>(null);
   const [storageStatus, setStorageStatus] = useState<'checking' | 'ok' | 'error'>('checking');
   const [storageErrorMessage, setStorageErrorMessage] = useState<string | null>(null);
@@ -359,8 +376,8 @@ export default function App() {
       });
       let missingFields = [];
       if (!currentUser && !customerName) missingFields.push("Seu Nome");
-      if (!currentUser && !customerPassword) missingFields.push("Sua Senha");
       if (!customerWhatsapp) missingFields.push("Seu WhatsApp");
+      if (!customerPassword && customerWhatsapp) missingFields.push("WhatsApp (precisa ter 4 dígitos para a senha)");
       if (orderType === "image" && selectedImages.length === 0) missingFields.push("Imagem do Bordado");
       if (orderType === "text" && !textContent) missingFields.push("Texto do Bordado");
       if (orderType === "text" && !fontStyle) missingFields.push("Estilo da Fonte");
@@ -1218,14 +1235,18 @@ export default function App() {
                             />
                           </div>
                           <div className="space-y-4">
-                            <Label className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-primary">Sua Senha (para acompanhar)</Label>
+                            <Label className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-primary">Seu WhatsApp</Label>
                             <Input 
-                              type="password"
-                              placeholder="Crie sua senha" 
-                              value={customerPassword}
-                              onChange={(e) => setCustomerPassword(e.target.value)}
+                              placeholder="Ex: (11) 99999-9999" 
+                              value={customerWhatsapp}
+                              onChange={(e) => setCustomerWhatsapp(e.target.value)}
                               className="glass-input h-14 text-lg"
                             />
+                          </div>
+                          <div className="md:col-span-2 p-4 bg-brand-primary/5 rounded-xl border border-brand-primary/10">
+                            <p className="text-[10px] text-brand-primary font-bold uppercase tracking-widest text-center">
+                              Sua senha será os últimos 4 dígitos do seu WhatsApp
+                            </p>
                           </div>
                         </div>
                       ) : (
@@ -1252,16 +1273,6 @@ export default function App() {
                           </Button>
                         </div>
                       )}
-
-                      <div className="space-y-4">
-                        <Label className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-primary">Seu WhatsApp</Label>
-                        <Input 
-                          placeholder="Ex: (11) 99999-9999" 
-                          value={customerWhatsapp}
-                          onChange={(e) => setCustomerWhatsapp(e.target.value)}
-                          className="glass-input h-14 text-lg"
-                        />
-                      </div>
 
                       <div className="space-y-6">
                         <Label className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-primary">O que você deseja fazer?</Label>
@@ -1550,11 +1561,11 @@ export default function App() {
                       
                       {(!isSubmitted && !isSubmitting) && (
                         <div className="text-center">
-                          {(!currentUser && (!customerName || !customerPassword)) ? (
-                            <p className="text-[10px] text-amber-600 font-medium uppercase tracking-wider">Preencha seu nome e senha para continuar</p>
+                          {(!currentUser && !customerName) ? (
+                            <p className="text-[10px] text-amber-600 font-medium uppercase tracking-wider">Preencha seu nome para continuar</p>
                           ) : !customerWhatsapp ? (
-                            <p className="text-[10px] text-amber-600 font-medium uppercase tracking-wider">O WhatsApp é obrigatório</p>
-                          ) : (orderType === "image" && !image) ? (
+                            <p className="text-[10px] text-amber-600 font-medium uppercase tracking-wider">O WhatsApp é obrigatório (sua senha será os últimos 4 dígitos)</p>
+                          ) : (orderType === "image" && selectedImages.length === 0) ? (
                             <p className="text-[10px] text-amber-600 font-medium uppercase tracking-wider">Selecione uma imagem para o bordado</p>
                           ) : (orderType === "text" && (!textContent || !fontStyle)) ? (
                             <p className="text-[10px] text-amber-600 font-medium uppercase tracking-wider">Preencha o texto e o estilo da fonte</p>
@@ -1601,8 +1612,15 @@ export default function App() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                              <Label className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-primary">Sua Senha</Label>
+                            <Label className="text-[10px] uppercase tracking-[0.2em] font-bold text-brand-primary">Sua Senha</Label>
+                            <Input 
+                              type="password"
+                              placeholder="4 últimos dígitos do WhatsApp" 
+                              value={searchPassword}
+                              onChange={(e) => setSearchPassword(e.target.value)}
+                              className="glass-input h-14 text-lg"
+                            />
+                            <div className="flex justify-end">
                               <button 
                                 type="button" 
                                 onClick={() => {
@@ -1615,13 +1633,6 @@ export default function App() {
                                 Esqueci a senha
                               </button>
                             </div>
-                            <Input 
-                              type="password"
-                              placeholder="Digite sua senha" 
-                              value={searchPassword}
-                              onChange={(e) => setSearchPassword(e.target.value)}
-                              className="glass-input h-14 text-lg"
-                            />
                           </div>
                           {loginError && (
                             <div className="p-3 bg-red-50 border border-red-100 rounded-lg flex items-center gap-2 text-red-600 text-xs font-bold uppercase">

@@ -23,7 +23,10 @@ import {
   Copy,
   LogOut,
   LogIn,
-  Download
+  Download,
+  RefreshCcw,
+  Database,
+  Users2
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -54,7 +57,8 @@ import {
   onSnapshot,
   setDoc,
   getDoc,
-  deleteField
+  deleteField,
+  serverTimestamp
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
@@ -150,6 +154,7 @@ export default function App() {
   const [customerPassword, setCustomerPassword] = useState("");
   const [customerWhatsapp, setCustomerWhatsapp] = useState("");
   const [intent, setIntent] = useState<"budget" | "produce">("produce");
+  const [isMigrating, setIsMigrating] = useState(false);
   
   // Auto-set password from WhatsApp for registration
   useEffect(() => {
@@ -796,6 +801,65 @@ export default function App() {
       console.error("All download methods failed:", error);
       window.open(url, '_blank');
       setSubmitStatus("");
+    }
+  };
+
+  const migratePasswords = async () => {
+    if (!window.confirm("Isso irá atualizar as senhas de TODOS os clientes para os últimos 4 dígitos do WhatsApp. Deseja continuar?")) return;
+    
+    setIsMigrating(true);
+    setSubmitStatus("Sincronizando senhas...");
+    console.log("Iniciando migração de senhas...");
+    
+    try {
+      const querySnapshot = await getDocs(collection(db, "users"));
+      let updatedCount = 0;
+      let skippedCount = 0;
+      
+      // Use chunks or batches if many users, but for a standard amount a loop is fine
+      const updatePromises = querySnapshot.docs.map(async (docSnap) => {
+        const userData = docSnap.data();
+        const whatsapp = userData.whatsapp || "";
+        const clean = whatsapp.replace(/\D/g, "");
+        
+        if (clean.length >= 4) {
+          const newPassword = clean.slice(-4);
+          // Update everyone to ensure consistency as requested
+          try {
+            await updateDoc(doc(db, "users", docSnap.id), { 
+              password: newPassword,
+              updatedAt: serverTimestamp() // Add a timestamp to track when it was updated
+            });
+            console.log(`Senha atualizada para ${docSnap.id}: ${newPassword}`);
+            updatedCount++;
+          } catch (err) {
+            console.error(`Erro ao atualizar ${docSnap.id}:`, err);
+            skippedCount++;
+          }
+        } else {
+          console.warn(`WhatsApp inválido para ${docSnap.id}: ${whatsapp}`);
+          skippedCount++;
+        }
+      });
+
+      await Promise.all(updatePromises);
+      
+      setSubmitStatus("");
+      alert(`Migração concluída com sucesso!\n\n${updatedCount} senhas foram atualizadas no banco de dados.\n${skippedCount} clientes não puderam ser atualizados (WhatsApp curto ou erro).`);
+      
+      // Force refresh of local users state
+      const snapshot = await getDocs(collection(db, "users"));
+      const newUsers: Record<string, any> = {};
+      snapshot.docs.forEach(docSnap => {
+        newUsers[docSnap.id] = docSnap.data();
+      });
+      setUsers(newUsers);
+    } catch (error) {
+      console.error("Erro fatal na migração:", error);
+      setSubmitStatus("");
+      alert("Erro ao acessar o banco de dados para migração.");
+    } finally {
+      setIsMigrating(false);
     }
   };
 
@@ -1884,6 +1948,15 @@ export default function App() {
                       <Badge variant="outline" className="h-8 md:h-10 px-4 md:px-6 rounded-lg md:rounded-xl border-brand-primary/20 text-brand-primary font-bold text-[10px] md:text-xs">
                         {orders.length} Pedidos
                       </Badge>
+                      <Button 
+                        onClick={migratePasswords} 
+                        variant="outline" 
+                        disabled={isMigrating}
+                        className="h-8 md:h-10 px-4 md:px-6 rounded-lg md:rounded-xl border-brand-primary/20 text-brand-primary font-bold text-[10px] md:text-xs gap-2 hover:bg-brand-primary/5 shadow-sm"
+                      >
+                        <RefreshCcw className={cn("w-3 h-3", isMigrating && "animate-spin")} />
+                        {isMigrating ? "Sincronizando..." : "Sincronizar Senhas"}
+                      </Button>
                       <Badge 
                         variant="outline" 
                         title={storageErrorMessage || ""}
@@ -2192,6 +2265,50 @@ export default function App() {
                     </Table>
                   </Card>
                 </Tabs>
+
+                <div className="pt-8 border-t border-brand-primary/10">
+                  <div className="flex items-center gap-2 mb-6">
+                    <Users2 className="w-5 h-5 text-brand-primary" />
+                    <h3 className="text-lg font-bold">Gestão de Clientes</h3>
+                  </div>
+                  <div className="bg-white rounded-2xl border border-brand-primary/10 overflow-hidden shadow-sm">
+                    <div className="overflow-x-auto no-scrollbar">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-brand-primary/5 border-b border-brand-primary/10">
+                            <th className="px-6 py-4 text-[10px] uppercase tracking-widest font-bold text-brand-primary">Cliente</th>
+                            <th className="px-6 py-4 text-[10px] uppercase tracking-widest font-bold text-brand-primary">WhatsApp</th>
+                            <th className="px-6 py-4 text-[10px] uppercase tracking-widest font-bold text-brand-primary">Senha Atual</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-brand-primary/5">
+                          {Object.entries(users).filter(([_, u]) => (u as any).role !== 'admin').map(([name, userData]) => (
+                            <tr key={name} className="hover:bg-brand-primary/[0.02] transition-colors">
+                              <td className="px-6 py-4">
+                                <p className="text-sm font-bold text-brand-dark">{name}</p>
+                              </td>
+                              <td className="px-6 py-4">
+                                <p className="text-xs font-medium text-brand-dark/60">{(userData as any).whatsapp || "N/A"}</p>
+                              </td>
+                              <td className="px-6 py-4">
+                                <code className="px-2 py-1 bg-brand-primary/5 rounded text-xs font-mono font-bold text-brand-primary">
+                                  {(userData as any).password}
+                                </code>
+                              </td>
+                            </tr>
+                          ))}
+                          {Object.keys(users).filter(name => users[name].role !== 'admin').length === 0 && (
+                            <tr>
+                              <td colSpan={3} className="px-6 py-12 text-center text-brand-dark/40 italic">
+                                Nenhum cliente cadastrado ainda.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
               </motion.div>
             </TabsContent>
             )}

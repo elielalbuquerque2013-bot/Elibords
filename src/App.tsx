@@ -26,7 +26,8 @@ import {
   Download,
   RefreshCcw,
   Database,
-  Users2
+  Users2,
+  UserPlus
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -155,6 +156,10 @@ export default function App() {
   const [customerWhatsapp, setCustomerWhatsapp] = useState("");
   const [intent, setIntent] = useState<"budget" | "produce">("produce");
   const [isMigrating, setIsMigrating] = useState(false);
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [newUserName, setNewUserName] = useState("");
+  const [newUserWhatsapp, setNewUserWhatsapp] = useState("");
+  const [isAddingUser, setIsAddingUser] = useState(false);
   
   // Auto-set password from WhatsApp for registration
   useEffect(() => {
@@ -801,6 +806,90 @@ export default function App() {
       console.error("All download methods failed:", error);
       window.open(url, '_blank');
       setSubmitStatus("");
+    }
+  };
+
+  const handleDeleteUser = async (username: string) => {
+    // Basic protection (though the UI also filters out admins)
+    if (Object.values(users).find(u => (u as any).username === username && (u as any).role === 'admin')) {
+      alert("Não é possível excluir um administrador.");
+      return;
+    }
+
+    if (!window.confirm(`Tem certeza que deseja excluir o cliente "${username}"? Todos os dados dele serão apagados.`)) return;
+
+    try {
+      setSubmitStatus(`Excluindo ${username}...`);
+      await deleteDoc(doc(db, "users", username));
+      
+      // Update local state
+      const newUsers = { ...users };
+      delete newUsers[username];
+      setUsers(newUsers);
+      
+      setSubmitStatus("");
+      alert("Cliente excluído com sucesso!");
+    } catch (error) {
+      console.error("Erro ao excluir cliente:", error);
+      setSubmitStatus("");
+      alert("Erro ao excluir cliente no banco de dados.");
+    }
+  };
+
+  const handleAddUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUserName.trim() || !newUserWhatsapp.trim()) {
+      alert("Preencha todos os campos.");
+      return;
+    }
+
+    const clean = newUserWhatsapp.replace(/\D/g, "");
+    if (clean.length < 4) {
+      alert("WhatsApp deve ter pelo menos 4 dígitos para gerar a senha.");
+      return;
+    }
+
+    const password = clean.slice(-4);
+    setIsAddingUser(true);
+    setSubmitStatus("Cadastrando cliente...");
+
+    try {
+      // Check if user exists (using document ID which is the username)
+      const userRef = doc(db, "users", newUserName.trim());
+      const userSnap = await getDoc(userRef);
+      
+      if (userSnap.exists()) {
+        alert("Já existe um cliente com este nome.");
+        setIsAddingUser(false);
+        setSubmitStatus("");
+        return;
+      }
+
+      const userData = {
+        username: newUserName.trim(),
+        whatsapp: newUserWhatsapp.trim(),
+        password: password,
+        role: 'customer',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      await setDoc(userRef, userData);
+      
+      // Update local state
+      setUsers(prev => ({ ...prev, [newUserName.trim()]: userData as any }));
+      
+      setNewUserName("");
+      setNewUserWhatsapp("");
+      setShowAddUserModal(false);
+      setSubmitStatus("");
+      alert(`Cliente ${newUserName.trim()} cadastrado com sucesso! A senha dele é ${password}`);
+    } catch (error) {
+      console.error("Erro ao adicionar cliente:", error);
+      setSubmitStatus("");
+      alert("Erro ao cadastrar cliente no banco de dados.");
+    } finally {
+      setIsAddingUser(false);
     }
   };
 
@@ -2267,9 +2356,18 @@ export default function App() {
                 </Tabs>
 
                 <div className="pt-8 border-t border-brand-primary/10">
-                  <div className="flex items-center gap-2 mb-6">
-                    <Users2 className="w-5 h-5 text-brand-primary" />
-                    <h3 className="text-lg font-bold">Gestão de Clientes</h3>
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                    <div className="flex items-center gap-2">
+                      <Users2 className="w-5 h-5 text-brand-primary" />
+                      <h3 className="text-lg font-bold">Gestão de Clientes</h3>
+                    </div>
+                    <Button 
+                      onClick={() => setShowAddUserModal(true)}
+                      className="rounded-xl bg-brand-primary text-white hover:bg-brand-primary/90 gap-2"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      Novo Cliente
+                    </Button>
                   </div>
                   <div className="bg-white rounded-2xl border border-brand-primary/10 overflow-hidden shadow-sm">
                     <div className="overflow-x-auto no-scrollbar">
@@ -2279,6 +2377,7 @@ export default function App() {
                             <th className="px-6 py-4 text-[10px] uppercase tracking-widest font-bold text-brand-primary">Cliente</th>
                             <th className="px-6 py-4 text-[10px] uppercase tracking-widest font-bold text-brand-primary">WhatsApp</th>
                             <th className="px-6 py-4 text-[10px] uppercase tracking-widest font-bold text-brand-primary">Senha Atual</th>
+                            <th className="px-6 py-4 text-[10px] uppercase tracking-widest font-bold text-brand-primary text-right">Ações</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-brand-primary/5">
@@ -2295,11 +2394,21 @@ export default function App() {
                                   {(userData as any).password}
                                 </code>
                               </td>
+                              <td className="px-6 py-4 text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDeleteUser(name)}
+                                  className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </td>
                             </tr>
                           ))}
                           {Object.keys(users).filter(name => users[name].role !== 'admin').length === 0 && (
                             <tr>
-                              <td colSpan={3} className="px-6 py-12 text-center text-brand-dark/40 italic">
+                              <td colSpan={4} className="px-6 py-12 text-center text-brand-dark/40 italic">
                                 Nenhum cliente cadastrado ainda.
                               </td>
                             </tr>
@@ -2315,6 +2424,85 @@ export default function App() {
           </AnimatePresence>
         </Tabs>
       </main>
+
+      {/* Modal Adicionar Cliente */}
+      <AnimatePresence>
+        {showAddUserModal && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-brand-dark/60 backdrop-blur-sm"
+              onClick={() => !isAddingUser && setShowAddUserModal(false)}
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative z-10 w-full max-w-md"
+            >
+              <Card className="glass-card shadow-2xl">
+                <CardHeader className="relative pt-8 space-y-2">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="absolute right-4 top-4 text-brand-dark/40 hover:text-brand-dark hover:bg-brand-dark/5 rounded-full"
+                    onClick={() => setShowAddUserModal(false)}
+                    disabled={isAddingUser}
+                  >
+                    <X className="w-5 h-5" />
+                  </Button>
+                  <div className="w-12 h-12 bg-brand-primary/10 rounded-xl flex items-center justify-center mx-auto mb-4 border border-brand-primary/20">
+                    <UserPlus className="w-6 h-6 text-brand-primary" />
+                  </div>
+                  <CardTitle className="text-xl font-bold text-center tracking-tight">Novo Cliente</CardTitle>
+                </CardHeader>
+                <form onSubmit={handleAddUser}>
+                  <CardContent className="p-6 space-y-6">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase tracking-widest font-bold text-brand-primary">Nome Completo</Label>
+                        <Input 
+                          placeholder="Ex: João Silva" 
+                          value={newUserName}
+                          onChange={(e) => setNewUserName(e.target.value)}
+                          className="glass-input h-12"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase tracking-widest font-bold text-brand-primary">WhatsApp</Label>
+                        <Input 
+                          placeholder="Ex: (11) 99999-9999" 
+                          value={newUserWhatsapp}
+                          onChange={(e) => setNewUserWhatsapp(e.target.value)}
+                          className="glass-input h-12"
+                          required
+                        />
+                      </div>
+                      <div className="p-4 bg-brand-primary/5 rounded-xl border border-brand-primary/10">
+                        <p className="text-[10px] text-brand-primary font-bold uppercase tracking-widest text-center">
+                          A senha será os últimos 4 dígitos do WhatsApp
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="p-6 pt-0">
+                    <Button 
+                      type="submit" 
+                      className="w-full h-14 rounded-2xl bg-brand-primary text-white font-bold text-sm uppercase tracking-widest shadow-lg shadow-brand-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+                      disabled={isAddingUser}
+                    >
+                      {isAddingUser ? "Cadastrando..." : "Cadastrar Cliente"}
+                    </Button>
+                  </CardFooter>
+                </form>
+              </Card>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Admin Login Modal */}
       <AnimatePresence>

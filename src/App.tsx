@@ -456,7 +456,7 @@ export default function App() {
           const userData = {
             username: customerName,
             password: customerPassword,
-            whatsapp: customerWhatsapp,
+            whatsapp: customerWhatsapp.replace(/\D/g, ""),
             role: 'client'
           };
           const cleanUserData = JSON.parse(JSON.stringify(userData));
@@ -465,7 +465,7 @@ export default function App() {
       } else if (currentUser && users[currentUser] && !users[currentUser].whatsapp && customerWhatsapp) {
         // Update user in Firestore
         await updateDoc(doc(db, "users", currentUser), {
-          whatsapp: customerWhatsapp
+          whatsapp: customerWhatsapp.replace(/\D/g, "")
         });
       }
 
@@ -867,7 +867,7 @@ export default function App() {
 
       const userData = {
         username: newUserName.trim(),
-        whatsapp: newUserWhatsapp.trim(),
+        whatsapp: clean,
         password: password,
         role: 'customer',
         createdAt: serverTimestamp(),
@@ -893,48 +893,47 @@ export default function App() {
     }
   };
 
-  const migratePasswords = async () => {
-    if (!window.confirm("Isso irá atualizar as senhas de TODOS os clientes para os últimos 4 dígitos do WhatsApp. Deseja continuar?")) return;
+  const migrateUsersData = async () => {
+    if (!window.confirm("Isso irá formatar TODOS os WhatsApps (apenas números) e atualizar as senhas. Deseja continuar?")) return;
     
     setIsMigrating(true);
-    setSubmitStatus("Sincronizando senhas...");
-    console.log("Iniciando migração de senhas...");
+    setSubmitStatus("Sincronizando dados dos usuários...");
+    console.log("Iniciando migração de usuários...");
     
     try {
       const querySnapshot = await getDocs(collection(db, "users"));
       let updatedCount = 0;
-      let skippedCount = 0;
+      let errorCount = 0;
       
-      // Use chunks or batches if many users, but for a standard amount a loop is fine
       const updatePromises = querySnapshot.docs.map(async (docSnap) => {
         const userData = docSnap.data();
-        const whatsapp = userData.whatsapp || "";
-        const clean = whatsapp.replace(/\D/g, "");
+        const rawWhatsapp = userData.whatsapp || "";
+        const cleanWhatsapp = rawWhatsapp.replace(/\D/g, "");
         
-        if (clean.length >= 4) {
-          const newPassword = clean.slice(-4);
-          // Update everyone to ensure consistency as requested
+        if (cleanWhatsapp.length >= 4) {
+          const newPassword = cleanWhatsapp.slice(-4);
           try {
             await updateDoc(doc(db, "users", docSnap.id), { 
+              whatsapp: cleanWhatsapp,
               password: newPassword,
-              updatedAt: serverTimestamp() // Add a timestamp to track when it was updated
+              updatedAt: serverTimestamp()
             });
-            console.log(`Senha atualizada para ${docSnap.id}: ${newPassword}`);
+            console.log(`Dados atualizados para ${docSnap.id}: ${cleanWhatsapp} / ${newPassword}`);
             updatedCount++;
           } catch (err) {
             console.error(`Erro ao atualizar ${docSnap.id}:`, err);
-            skippedCount++;
+            errorCount++;
           }
         } else {
-          console.warn(`WhatsApp inválido para ${docSnap.id}: ${whatsapp}`);
-          skippedCount++;
+          console.warn(`WhatsApp insuficiente para ${docSnap.id}: ${rawWhatsapp}`);
+          errorCount++;
         }
       });
 
       await Promise.all(updatePromises);
       
       setSubmitStatus("");
-      alert(`Migração concluída com sucesso!\n\n${updatedCount} senhas foram atualizadas no banco de dados.\n${skippedCount} clientes não puderam ser atualizados (WhatsApp curto ou erro).`);
+      alert(`Sincronização concluída!\n\n${updatedCount} usuários atualizados.\n${errorCount} falhas ou números inválidos.`);
       
       // Force refresh of local users state
       const snapshot = await getDocs(collection(db, "users"));
@@ -946,7 +945,7 @@ export default function App() {
     } catch (error) {
       console.error("Erro fatal na migração:", error);
       setSubmitStatus("");
-      alert("Erro ao acessar o banco de dados para migração.");
+      alert("Erro ao acessar o banco de dados.");
     } finally {
       setIsMigrating(false);
     }
@@ -2038,13 +2037,13 @@ export default function App() {
                         {orders.length} Pedidos
                       </Badge>
                       <Button 
-                        onClick={migratePasswords} 
+                        onClick={migrateUsersData} 
                         variant="outline" 
                         disabled={isMigrating}
                         className="h-8 md:h-10 px-4 md:px-6 rounded-lg md:rounded-xl border-brand-primary/20 text-brand-primary font-bold text-[10px] md:text-xs gap-2 hover:bg-brand-primary/5 shadow-sm"
                       >
                         <RefreshCcw className={cn("w-3 h-3", isMigrating && "animate-spin")} />
-                        {isMigrating ? "Sincronizando..." : "Sincronizar Senhas"}
+                        {isMigrating ? "Sincronizando..." : "Sincronizar Dados"}
                       </Button>
                       <Badge 
                         variant="outline" 

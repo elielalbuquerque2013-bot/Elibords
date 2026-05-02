@@ -93,27 +93,36 @@ async function startServer() {
     try {
       const imageUrl = req.query.url as string;
       const fileName = req.query.filename as string;
-      if (!imageUrl) return res.status(400).send("URL is required");
+      if (!imageUrl) return res.status(400).json({ error: "URL is required" });
 
+      console.log(`[PROXY] Fetching: ${imageUrl}`);
       const response = await fetch(imageUrl);
-      if (!response.ok) throw new Error(`Failed to fetch: ${response.statusText}`);
+      
+      if (!response.ok) {
+        console.error(`[PROXY ERROR] Remote server returned ${response.status}: ${response.statusText}`);
+        return res.status(response.status).json({ 
+          error: `Failed to fetch from source: ${response.statusText}`,
+          status: response.status 
+        });
+      }
 
-      const contentType = response.headers.get("content-type");
-      if (contentType) res.setHeader("Content-Type", contentType);
+      const contentType = response.headers.get("content-type") || "application/octet-stream";
+      res.setHeader("Content-Type", contentType);
       
       if (fileName) {
-        // Force the browser to use this filename even if proxying
-        res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+        // Encode the filename to handle special characters correctly
+        const encodedFileName = encodeURIComponent(fileName);
+        res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodedFileName}`);
       }
       
-      // Add generic CORS headers
       res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Cache-Control", "public, max-age=3600");
 
       const arrayBuffer = await response.arrayBuffer();
       res.send(Buffer.from(arrayBuffer));
-    } catch (err) {
+    } catch (err: any) {
       console.error("[PROXY ERROR]", err);
-      res.status(500).send("Error proxying image");
+      res.status(500).json({ error: "Internal error proxying file", details: err.message });
     }
   });
 

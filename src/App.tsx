@@ -763,6 +763,12 @@ export default function App() {
         const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(cleanName)}`;
         const proxyResp = await fetch(proxyUrl);
         if (proxyResp.ok) {
+          const contentType = proxyResp.headers.get("content-type");
+          // If it's HTML but we expect a binary file, it's likely an error page
+          if (contentType && contentType.includes("text/html") && !cleanName.endsWith('.html')) {
+            throw new Error("Proxy returned HTML instead of the expected file.");
+          }
+
           const blob = await proxyResp.blob();
           const blobUrl = window.URL.createObjectURL(blob);
           const link = document.createElement('a');
@@ -774,6 +780,8 @@ export default function App() {
           window.URL.revokeObjectURL(blobUrl);
           setSubmitStatus("");
           return;
+        } else {
+          console.warn(`Proxy returned status ${proxyResp.status}`);
         }
       } catch (e) {
         console.warn("Proxy download failed, trying direct fetch...", e);
@@ -783,6 +791,11 @@ export default function App() {
       try {
         const directResp = await fetch(url);
         if (directResp.ok) {
+          const contentType = directResp.headers.get("content-type");
+          if (contentType && contentType.includes("text/html") && !cleanName.endsWith('.html')) {
+            throw new Error("Direct fetch returned HTML instead of the expected file.");
+          }
+
           const blob = await directResp.blob();
           const blobUrl = window.URL.createObjectURL(blob);
           const link = document.createElement('a');

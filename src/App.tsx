@@ -728,7 +728,7 @@ export default function App() {
   };
 
   const handleViewImage = (imageUrl: string) => {
-    if (!imageUrl || imageUrl === "pdf-placeholder") return;
+    if (!imageUrl) return;
     setViewingImage(imageUrl);
   };
 
@@ -2097,7 +2097,7 @@ export default function App() {
                           <div className="flex justify-between items-start">
                             <div className="flex flex-col gap-0.5">
                               <span className="text-[10px] text-brand-primary font-bold uppercase tracking-widest">{format(order.date, "dd/MM/yyyy")}</span>
-                              <span className="font-bold text-lg md:text-xl text-brand-dark leading-tight">{order.customerName}</span>
+                              <span className="font-bold text-lg md:text-xl text-brand-dark leading-tight break-words whitespace-normal">{order.customerName}</span>
                               {order.customerWhatsapp && (
                                 <a 
                                   href={`https://wa.me/${order.customerWhatsapp.replace(/\D/g, '')}`} 
@@ -2149,8 +2149,8 @@ export default function App() {
                                 <Type className="w-5 h-5 text-brand-primary opacity-40" />
                               </div>
                             )}
-                            <div className="flex flex-col">
-                              <span className="text-xs font-bold truncate max-w-[150px]">{order.orderType === "text" ? order.textContent : "Logo/Imagem"}</span>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-xs font-bold break-words whitespace-normal">{order.orderType === "text" ? order.textContent : "Logo/Imagem"}</span>
                               <span className="text-[10px] text-brand-dark/40 uppercase font-medium">{order.size} cm • {order.format}</span>
                             </div>
                           </div>
@@ -2212,9 +2212,9 @@ export default function App() {
                           {orders.filter(o => o.status === adminStatusFilter).map((order) => (
                             <TableRow key={order.id} className="border-brand-primary/5 hover:bg-brand-primary/[0.02] transition-colors">
                               <TableCell className="font-medium text-sm">{format(order.date, "dd/MM")}</TableCell>
-                              <TableCell>
+                              <TableCell className="max-w-[120px] md:max-w-none">
                                 <div className="flex flex-col">
-                                  <span className="font-bold text-brand-dark">{order.customerName}</span>
+                                  <span className="font-bold text-brand-dark break-words whitespace-normal">{order.customerName}</span>
                                   {order.customerWhatsapp ? (
                                     <a 
                                       href={`https://wa.me/${order.customerWhatsapp.replace(/\D/g, '')}`} 
@@ -2229,7 +2229,7 @@ export default function App() {
                                   )}
                                 </div>
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="max-w-[200px] md:max-w-xs">
                                 <div className="flex items-center gap-3 text-left">
                                   {order.orderType === "image" ? (
                                     <div className="flex -space-x-3 group cursor-pointer" onClick={() => handleViewImage(order.imagePreview || order.imageThumbnail || "")}>
@@ -2265,8 +2265,8 @@ export default function App() {
                                       <Type className="w-5 h-5 text-brand-primary opacity-40" />
                                     </div>
                                   )}
-                                  <div className="flex flex-col">
-                                    <span className="text-xs font-bold">{order.orderType === "text" ? order.textContent : "Logo/Imagem"}</span>
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-xs font-bold break-words whitespace-normal">{order.orderType === "text" ? order.textContent : "Logo/Imagem"}</span>
                                     <div className="flex items-center gap-2">
                                       <span className="text-[10px] text-brand-dark/40 uppercase tracking-widest">{order.size} cm • {order.format}</span>
                                       {order.intent && (
@@ -2382,8 +2382,8 @@ export default function App() {
                     </Button>
                   </div>
                   <div className="bg-white rounded-2xl border border-brand-primary/10 overflow-hidden shadow-sm">
-                    <div className="overflow-x-auto no-scrollbar">
-                      <table className="w-full text-left border-collapse">
+                    <div className="w-full">
+                      <table className="w-full text-left border-collapse table-auto">
                         <thead>
                           <tr className="bg-brand-primary/5 border-b border-brand-primary/10">
                             <th className="px-6 py-4 text-[10px] uppercase tracking-widest font-bold text-brand-primary">Cliente</th>
@@ -2395,8 +2395,8 @@ export default function App() {
                         <tbody className="divide-y divide-brand-primary/5">
                           {Object.entries(users).filter(([_, u]) => (u as any).role !== 'admin').map(([name, userData]) => (
                             <tr key={name} className="hover:bg-brand-primary/[0.02] transition-colors">
-                              <td className="px-6 py-4">
-                                <p className="text-sm font-bold text-brand-dark">{name}</p>
+                              <td className="px-6 py-4 max-w-[150px]">
+                                <p className="text-sm font-bold text-brand-dark break-words whitespace-normal">{name}</p>
                               </td>
                               <td className="px-6 py-4">
                                 <p className="text-xs font-medium text-brand-dark/60">{(userData as any).whatsapp || "N/A"}</p>
@@ -2670,7 +2670,12 @@ export default function App() {
                             orderToShow.images.map((img, idx) => (
                               <div key={idx} className="relative aspect-square rounded-xl border border-brand-primary/10 overflow-hidden bg-white flex items-center justify-center group">
                                 {img.thumbnail === "pdf-placeholder" ? (
-                                  <FileType className="w-8 h-8 text-brand-primary opacity-30" />
+                                  <div 
+                                    className="w-full h-full bg-brand-primary/5 flex items-center justify-center cursor-zoom-in"
+                                    onClick={() => handleViewImage(img.preview)}
+                                  >
+                                    <FileType className="w-8 h-8 text-brand-primary opacity-30" />
+                                  </div>
                                 ) : (
                                   <img 
                                     src={img.thumbnail || img.preview} 
@@ -2689,7 +2694,12 @@ export default function App() {
                           ) : (
                             <div className="col-span-full relative aspect-video rounded-xl border border-brand-primary/10 overflow-hidden bg-white flex items-center justify-center group">
                                {orderToShow.imagePreview === "pdf-placeholder" ? (
-                                  <FileType className="w-12 h-12 text-brand-primary opacity-30" />
+                                  <div 
+                                    className="w-full h-full bg-brand-primary/5 flex items-center justify-center cursor-zoom-in"
+                                    onClick={() => handleViewImage(orderToShow.imagePreview!)}
+                                  >
+                                    <FileType className="w-12 h-12 text-brand-primary opacity-30" />
+                                  </div>
                                ) : (
                                   <img 
                                     src={orderToShow.imagePreview || ""} 
@@ -2860,7 +2870,18 @@ export default function App() {
               exit={{ scale: 0.9, opacity: 0 }}
               className="relative z-10 max-w-5xl w-full h-full flex flex-col items-center justify-center pointer-events-none"
             >
-              <div className="absolute top-0 right-0 p-4 pointer-events-auto">
+              <div className="absolute top-0 right-0 p-4 pointer-events-auto flex items-center gap-2">
+                {(viewingImage.includes('.pdf') || viewingImage.startsWith('data:application/pdf')) && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => window.open(viewingImage, '_blank')}
+                    className="bg-white/10 text-white hover:bg-white/20 gap-2 border border-white/20"
+                  >
+                    <Download className="w-4 h-4" />
+                    Abrir em nova aba
+                  </Button>
+                )}
                 <Button 
                   variant="ghost" 
                   size="icon" 
@@ -2870,12 +2891,23 @@ export default function App() {
                   <X className="w-6 h-6" />
                 </Button>
               </div>
-              <img 
-                src={viewingImage} 
-                alt="Full Preview" 
-                className="max-w-full max-h-[85vh] object-contain shadow-2xl rounded-lg pointer-events-auto"
-                referrerPolicy="no-referrer"
-              />
+              
+              {viewingImage.includes('.pdf') || viewingImage.toLowerCase().includes('.pdf') || viewingImage.startsWith('data:application/pdf') ? (
+                <div className="w-full h-[80vh] bg-white rounded-lg overflow-hidden shadow-2xl pointer-events-auto">
+                  <iframe 
+                    src={viewingImage} 
+                    className="w-full h-full border-0"
+                    title="PDF Viewer"
+                  />
+                </div>
+              ) : (
+                <img 
+                  src={viewingImage} 
+                  alt="Full Preview" 
+                  className="max-w-full max-h-[85vh] object-contain shadow-2xl rounded-lg pointer-events-auto"
+                  referrerPolicy="no-referrer"
+                />
+              )}
             </motion.div>
           </div>
         )}
